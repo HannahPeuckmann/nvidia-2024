@@ -1,18 +1,18 @@
-name: nvidia-core22
-base: core22
+name: nvidia-2404
+base: core24
 adopt-info: version
-summary: NVIDIA and Mesa libraries for core22 snaps
+summary: NVIDIA and Mesa libraries for core24 snaps
 description: |
   Content snap that provides NVIDIA and Mesa libraries for `base:
-  core22` snaps.
+  core24` snaps.
 compression: lzo
 grade: stable
 license: Proprietary
 confinement: strict
 
-architectures:
-  - build-on: amd64
-  - build-on: arm64
+platforms:
+  amd64:
+  arm64:
 
 parts:
   apis:
@@ -91,7 +91,19 @@ parts:
       - libxshmfence1
     prime:
       - usr/lib
-      - usr/share/X11
+      - usr/share/X11/XErrorDB
+
+  gbm:
+    # GBM EGL external platform
+    plugin: nil
+    stage-packages:
+      - to amd64:
+        - libnvidia-egl-gbm1
+      - to arm64:
+        - libnvidia-egl-gbm1
+    prime:
+      - usr/lib/*
+      - usr/share/egl/egl_external_platform.d/*
 
   wayland:
     # Wayland support (not much cost to having this)
@@ -142,7 +154,8 @@ parts:
         apt-cache policy libgl1-mesa-dri | sed -rne 's/^\s+Candidate:\s+([^-]*)-.+$/\1/p'
       )"
 
-  file-list:
+  # Work around https://bugs.launchpad.net/snapcraft/+bug/2076115
+  cleanup:
     after:
     - apis
     - drm
@@ -151,6 +164,17 @@ parts:
     - x11
     - wayland
     - nvidia
+    plugin: nil
+    build-snaps:
+    - core24
+    override-prime: |
+      set -eux
+      cd /snap/core24/current
+      find . -type f,l -exec rm -f ${CRAFT_PRIME}/{} \;
+      find ${CRAFT_PRIME} -empty -type d -delete
+
+  file-list:
+    after: [cleanup]
     plugin: nil
     override-prime: |
       mkdir -p ${CRAFT_PRIME}/snap
@@ -161,7 +185,7 @@ parts:
         cd ${CRAFT_PRIME}
         # Everything that is indeed staged
         find usr -type f,l
-      ) | sort -u > ${CRAFT_PRIME}/snap/${CRAFT_TARGET_ARCH}.list
+      ) | sort -u > ${CRAFT_PRIME}/snap/${CRAFT_ARCH_BUILD_FOR}.list
 
   scripts:
     after: [file-list]
@@ -175,11 +199,11 @@ apps:
       - opengl
 
 slots:
-  graphics-core22:
+  gpu-2404:
     interface: content
     source:
       read:
-        # Required at the top-level by graphics-core22
+        # Required at the top-level by gpu-2404
         - $SNAP/bin
         - $SNAP/usr/share/drirc.d
         - $SNAP/usr/share/libdrm
